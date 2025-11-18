@@ -13,7 +13,7 @@ const Login = () => {
     setLoading(true);
     setError('');
     try {
-      await auth.signInWithEmail(email);
+      await auth.signInWithEmail(email, password);
       // The onAuthStateChanged listener in AuthProvider will handle the redirect
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An unknown error occurred.');

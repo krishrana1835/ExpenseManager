@@ -1,151 +1,147 @@
 // ------------------------------
-//  REAL FIREBASE CONFIG
+//  FIREBASE SERVICE (Real)
 // ------------------------------
+import { initializeApp } from "firebase/app";
 import {
-    initializeApp
-} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-
+  getAuth,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut as firebaseSignOut,
+  onAuthStateChanged as firebaseOnAuthStateChanged,
+  User as FirebaseUser
+} from "firebase/auth";
 import {
-    getAuth,
-    signInWithEmailAndPassword,
-    signOut,
-    onAuthStateChanged
-} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-
-import {
-    getFirestore,
-    doc,
-    getDoc,
-    updateDoc,
-    setDoc,
-    query,
-    where,
-    getDocs,
-    collection,
-    addDoc,
-    orderBy,
-    Timestamp
-} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+  getFirestore,
+  doc,
+  getDoc,
+  updateDoc,
+  setDoc,
+  collection,
+  addDoc,
+  getDocs,
+  query,
+  where,
+  orderBy,
+  Timestamp
+} from "firebase/firestore";
+import { User, Expense } from "../types";
 
 // ------------------------------
-//  INITIALIZE FIREBASE APP
+//  FIREBASE CONFIG
 // ------------------------------
 const firebaseConfig = {
-  apiKey: "AIzaSyCkYyGPUV-o35jvU3Xd0beu6unazO5IEZI",
-  authDomain: "expensemanager-8e584.firebaseapp.com",
-  projectId: "expensemanager-8e584",
-  storageBucket: "expensemanager-8e584.firebasestorage.app",
-  messagingSenderId: "168251130052",
-  appId: "1:168251130052:web:67fd17425254796964c991",
-  measurementId: "G-XXD15Q4E6B"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
 
+// ------------------------------
+//  INITIALIZE APP
+// ------------------------------
 const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
-export const db = getFirestore(app);
+const authInstance = getAuth(app);
+const db = getFirestore(app);
 
 // ------------------------------
 //  AUTH SERVICE
 // ------------------------------
-export const authService = {
-    // login with email + password
-    signInWithEmail(email: string, password: string) {
-        return signInWithEmailAndPassword(auth, email, password);
-    },
+export const auth = {
+  signInWithEmail: (email: string, password: string) => {
+    return signInWithEmailAndPassword(authInstance, email, password);
+  },
 
-    signOut() {
-        return signOut(auth);
-    },
+  register: async (email: string, password: string) => {
+    const cred = await createUserWithEmailAndPassword(authInstance, email, password);
+    await setDoc(doc(db, "users", cred.user.uid), {
+      email,
+      name: "",
+      createdAt: Timestamp.now()
+    });
+    return cred;
+  },
 
-    onAuthStateChanged(callback: (user: any | null) => void) {
-        return onAuthStateChanged(auth, callback);
-    }
+  signOut: () => firebaseSignOut(authInstance),
+
+  onAuthStateChanged: (callback: (user: User | null) => void) => {
+    return firebaseOnAuthStateChanged(authInstance, async (fbUser: FirebaseUser | null) => {
+      if (fbUser) {
+        const userProfile = await firestore.getUserProfile(fbUser.uid);
+        callback(userProfile);
+      } else {
+        callback(null);
+      }
+    });
+  }
 };
 
 // ------------------------------
-//  USER PROFILE SERVICE
+//  FIRESTORE SERVICE
 // ------------------------------
-export const userService = {
-    async getUserProfile(uid: string) {
-        const ref = doc(db, "users", uid);
-        const snap = await getDoc(ref);
-        return snap.exists() ? snap.data() : null;
-    },
+export const firestore = {
+  getUserProfile: async (uid: string): Promise<User | null> => {
+    const snap = await getDoc(doc(db, "users", uid));
+    return snap.exists() ? (snap.data() as User) : null;
+  },
 
-    // Check if name already exists
-    async checkUsernameExists(name: string, currentUid?: string) {
-        const q = query(
-            collection(db, "users"),
-            where("name", "==", name)
-        );
-        const snap = await getDocs(q);
-        return snap.docs.some(d => d.id !== currentUid);
-    },
+  checkUsernameExists: async (name: string, currentUid?: string): Promise<boolean> => {
+    const q = query(collection(db, "users"), where("name", "==", name));
+    const snap = await getDocs(q);
+    return snap.docs.some(d => d.id !== currentUid);
+  },
 
-    async updateUserProfile(uid: string, data: any) {
-        const ref = doc(db, "users", uid);
-        return updateDoc(ref, data);
+  updateUserProfile: async (uid: string, data: Partial<User>) => {
+    const usernameExists = data.name ? await firestore.checkUsernameExists(data.name, uid) : false;
+    if (usernameExists) throw new Error("Username already exists.");
+    return updateDoc(doc(db, "users", uid), data);
+  },
+
+  addExpense: async (expense: Omit<Expense, "id" | "date"> & { date: Date }): Promise<Expense> => {
+    const dateValue = expense.date instanceof Date ? Timestamp.fromDate(expense.date) : Timestamp.fromDate(new Date(expense.date));
+    const ref = await addDoc(collection(db, "expenses"), { ...expense, date: dateValue });
+    return { id: ref.id, ...expense };
+  },
+
+  getExpenses: async (userEmail: string): Promise<Expense[]> => {
+    const q = query(
+      collection(db, "expenses"),
+      where("participants", "array-contains", userEmail),
+      orderBy("date", "desc")
+    );
+    const snap = await getDocs(q);
+    return snap.docs.map(doc => ({ id: doc.id, ...(doc.data() as Expense) }));
+  },
+
+  searchUsersByName: async (text: string, excludeEmails: string[]): Promise<User[]> => {
+    if (!text) return [];
+    const q = query(
+      collection(db, "users"),
+      where("name", ">=", text),
+      where("name", "<=", text + "\uf8ff")
+    );
+    const snap = await getDocs(q);
+    return snap.docs
+      .map(d => d.data() as User)
+      .filter(u => !excludeEmails.includes(u.email));
+  },
+
+  getUsersByEmails: async (emails: string[]): Promise<User[]> => {
+    if (!emails.length) return [];
+    const results: User[] = [];
+    for (const email of emails) {
+      const q = query(collection(db, "users"), where("email", "==", email));
+      const snap = await getDocs(q);
+      snap.forEach(doc => results.push(doc.data() as User));
     }
+    return results;
+  },
+
+  checkUserExists: async (email: string): Promise<boolean> => {
+    const q = query(collection(db, "users"), where("email", "==", email));
+    const snap = await getDocs(q);
+    return !snap.empty;
+  }
 };
-
-// ------------------------------
-//  EXPENSES SERVICE
-// ------------------------------
-export const expenseService = {
-
-    // Add expense
-    async addExpense(expense: any) {
-        const ref = await addDoc(collection(db, "expenses"), {
-            ...expense,
-            date: Timestamp.fromDate(new Date(expense.date))
-        });
-        return { id: ref.id, ...expense };
-    },
-
-    // Get all expenses where user is a participant
-    async getExpenses(userEmail: string) {
-        const q = query(
-            collection(db, "expenses"),
-            where("participants", "array-contains", userEmail),
-            orderBy("date", "desc")
-        );
-
-        const snap = await getDocs(q);
-        return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    }
-};
-
-// ------------------------------
-//  USER SEARCH (NAME SEARCH)
-// ------------------------------
-export const searchService = {
-    async searchUsersByName(queryStr: string, excludeEmails: string[]) {
-        if (!queryStr) return [];
-
-        const q = query(
-            collection(db, "users"),
-            where("name", ">=", queryStr),
-            where("name", "<=", queryStr + "\uf8ff")
-        );
-
-        const snap = await getDocs(q);
-
-        return snap.docs
-            .map(d => d.data())
-            .filter(u => !excludeEmails.includes(u.email));
-    },
-
-    async getUsersByEmails(emails: string[]) {
-        if (!emails.length) return [];
-
-        const users: any[] = [];
-        for (let email of emails) {
-            const q = query(collection(db, "users"), where("email", "==", email));
-            const snap = await getDocs(q);
-            snap.forEach(doc => users.push(doc.data()));
-        }
-
-        return users;
-    }
-};
-
