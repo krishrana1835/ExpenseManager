@@ -30,6 +30,7 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({ user, onClose, onAddE
 
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [totalAmountToAdd, setTotalAmountToAdd] = useState(0);
 
   useEffect(() => {
     const handler = setTimeout(async () => {
@@ -48,6 +49,7 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({ user, onClose, onAddE
   }, [participantSearch, participants]);
 
   useEffect(() => {
+    setTotalAmountToAdd(amount);
     const totalAmount = parseFloat(amount);
     if (isNaN(totalAmount) || totalAmount <= 0 || participants.length === 0) {
       setSplits([]);
@@ -119,7 +121,7 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({ user, onClose, onAddE
 
     try {
       const newExpenseData = {
-        amount: parseFloat(amount),
+        amount: parseFloat(totalAmountToAdd),
         reason,
         category,
         date: new Date(),
