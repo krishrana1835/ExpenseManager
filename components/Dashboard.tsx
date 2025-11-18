@@ -86,7 +86,6 @@ const Dashboard = ({
   const { totalOwedToUser, totalUserOwes, allBalances } = calculateBalances();
 
   // -------------------- MONTHLY EXPENSES --------------------
-  // -------------------- MONTHLY EXPENSES --------------------
   const currentMonthExpenses = safeExpenses.filter((exp) => {
     let expDate: Date;
 
@@ -104,6 +103,8 @@ const Dashboard = ({
       expDate = new Date(); // fallback
     }
 
+    if (!expDate) return false;
+
     const today = new Date();
     return (
       expDate.getMonth() === today.getMonth() &&
@@ -111,13 +112,16 @@ const Dashboard = ({
     );
   });
 
-  // Calculate total spent this month by the user (full amount)
   const totalSpentThisMonth = currentMonthExpenses.reduce((sum, exp) => {
-    if (exp.paidBy === user.email) {
-      return sum + (exp.amount || 0); // sum the full amount, not split
+    const splits = Array.isArray(exp.splits) ? exp.splits : [];
+    const userSplitAmount =
+      splits.find((s) => s.email === user.email)?.amount || 0;
+
+    if (exp.category === "Settlement" && exp.paidBy !== user.email) {
+      return sum - userSplitAmount;
     }
 
-    return sum;
+    return sum + userSplitAmount;
   }, 0);
 
   // -------------------- RENDER --------------------
