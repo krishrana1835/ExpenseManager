@@ -31,12 +31,13 @@ import {
 //  INITIALIZE FIREBASE APP
 // ------------------------------
 const firebaseConfig = {
-    apiKey: "YOUR_API_KEY",
-    authDomain: "YOUR_PROJECT.firebaseapp.com",
-    projectId: "YOUR_PROJECT",
-    storageBucket: "YOUR_PROJECT.appspot.com",
-    messagingSenderId: "YOUR_SENDER_ID",
-    appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyCkYyGPUV-o35jvU3Xd0beu6unazO5IEZI",
+  authDomain: "expensemanager-8e584.firebaseapp.com",
+  projectId: "expensemanager-8e584",
+  storageBucket: "expensemanager-8e584.firebasestorage.app",
+  messagingSenderId: "168251130052",
+  appId: "1:168251130052:web:67fd17425254796964c991",
+  measurementId: "G-XXD15Q4E6B"
 };
 
 const app = initializeApp(firebaseConfig);
