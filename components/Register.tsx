@@ -19,7 +19,9 @@ const Register = () => {
     }
 
     setLoading(true);
+
     try {
+      // Check if user already exists
       const exists = await firestore.checkUserExists(email);
       if (exists) {
         setError("Email already exists.");
@@ -27,9 +29,11 @@ const Register = () => {
         return;
       }
 
+      // Register user
       await auth.register(email, password, username);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Registration failed.");
+
+    } catch (err: any) {
+      setError(err.message || "Registration failed.");
     } finally {
       setLoading(false);
     }
@@ -39,7 +43,7 @@ const Register = () => {
     try {
       await auth.signInWithGoogle();
     } catch (err) {
-      setError("Google login failed.");
+      setError("Google login failed. Check Firebase authorized domains.");
     }
   };
 
@@ -94,20 +98,18 @@ const Register = () => {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-primary text-white py-2 rounded-md hover:bg-primary-600 disabled:bg-gray-400"
+            className="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700 disabled:bg-gray-400"
           >
             {loading ? "Creating account..." : "Register"}
           </button>
         </form>
 
-        <div className="flex items-center justify-center">
-          <button
-            className="w-full mt-2 py-2 border rounded-md text-gray-700 dark:text-white dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700"
-            onClick={handleGoogle}
-          >
-            Continue with Google
-          </button>
-        </div>
+        <button
+          className="w-full mt-2 py-2 border rounded-md text-gray-700 dark:text-white dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700"
+          onClick={handleGoogle}
+        >
+          Continue with Google
+        </button>
 
       </div>
     </div>

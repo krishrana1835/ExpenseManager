@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { auth } from "../services/firebaseService";
 
-const Login = () => {
+const Login = ({ goRegister }: { goRegister: () => void }) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -33,7 +33,6 @@ const Login = () => {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4">
       <div className="max-w-md w-full space-y-6 bg-white dark:bg-gray-800 p-8 rounded-xl shadow-lg">
-        
         <h2 className="text-3xl font-bold text-center text-gray-900 dark:text-white">
           Welcome Back
         </h2>
@@ -70,7 +69,9 @@ const Login = () => {
 
         <div className="flex items-center">
           <div className="grow border-t dark:border-gray-700"></div>
-          <span className="px-3 text-gray-500 dark:text-gray-400 text-sm">OR</span>
+          <span className="px-3 text-gray-500 dark:text-gray-400 text-sm">
+            OR
+          </span>
           <div className="grow border-t dark:border-gray-700"></div>
         </div>
 
@@ -86,13 +87,12 @@ const Login = () => {
         <p className="text-center text-sm text-gray-600 dark:text-gray-400">
           Don't have an account?{" "}
           <button
-            onClick={() => alert("Implement register screen here")}
+            onClick={goRegister}
             className="text-primary font-medium underline"
           >
             Register
           </button>
         </p>
-
       </div>
     </div>
   );

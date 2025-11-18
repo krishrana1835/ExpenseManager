@@ -1,5 +1,5 @@
 // ------------------------------
-//  FIREBASE SERVICE (Real)
+//  FIREBASE SERVICE
 // ------------------------------
 import { initializeApp } from "firebase/app";
 import {
@@ -26,6 +26,7 @@ import {
   orderBy,
   Timestamp
 } from "firebase/firestore";
+
 import { User, Expense } from "../types";
 
 // ------------------------------
@@ -69,20 +70,45 @@ export const auth = {
     return cred;
   },
 
-  signInWithGoogle: () => {
-    return signInWithPopup(authInstance, googleProvider);
+  // ⭐ Improved Google Auth: Creates user entry on first login
+  signInWithGoogle: async () => {
+    const result = await signInWithPopup(authInstance, googleProvider);
+    const user = result.user;
+
+    const userRef = doc(db, "users", user.uid);
+    const existing = await getDoc(userRef);
+
+    if (!existing.exists()) {
+      await setDoc(userRef, {
+        email: user.email,
+        name: user.displayName || "Google User",
+        createdAt: Timestamp.now()
+      });
+    }
+
+    return result;
   },
 
   signOut: () => firebaseSignOut(authInstance),
 
+  // ⭐ Fixed: Clean mapping + prevents double profile reads
   onAuthStateChanged: (callback: (user: User | null) => void) => {
     return firebaseOnAuthStateChanged(authInstance, async (fbUser: FirebaseUser | null) => {
-      if (fbUser) {
-        const userProfile = await firestore.getUserProfile(fbUser.uid);
-        callback(userProfile);
-      } else {
+      if (!fbUser) {
         callback(null);
+        return;
       }
+
+      const snap = await getDoc(doc(db, "users", fbUser.uid));
+      if (!snap.exists()) {
+        callback(null);
+        return;
+      }
+
+      callback({
+        ...(snap.data() as User),
+        uid: fbUser.uid
+      });
     });
   }
 };
@@ -93,23 +119,25 @@ export const auth = {
 export const firestore = {
   getUserProfile: async (uid: string): Promise<User | null> => {
     const snap = await getDoc(doc(db, "users", uid));
-    return snap.exists() ? (snap.data() as User) : null;
+    return snap.exists() ? { uid: uid, ...(snap.data() as User) } : null;
   },
 
   checkUsernameExists: async (name: string, currentUid?: string): Promise<boolean> => {
     const q = query(collection(db, "users"), where("name", "==", name));
     const snap = await getDocs(q);
-    return snap.docs.some(d => d.id !== currentUid);
+    return snap.docs.some(doc => doc.id !== currentUid);
   },
 
   updateUserProfile: async (uid: string, data: Partial<User>) => {
-    const usernameExists = data.name ? await firestore.checkUsernameExists(data.name, uid) : false;
-    if (usernameExists) throw new Error("Username already exists.");
+    if (data.name) {
+      const exists = await firestore.checkUsernameExists(data.name, uid);
+      if (exists) throw new Error("Username already exists.");
+    }
     return updateDoc(doc(db, "users", uid), data);
   },
 
   addExpense: async (expense: Omit<Expense, "id" | "date"> & { date: Date }): Promise<Expense> => {
-    const dateValue = expense.date instanceof Date ? Timestamp.fromDate(expense.date) : Timestamp.fromDate(new Date(expense.date));
+    const dateValue = Timestamp.fromDate(expense.date);
     const ref = await addDoc(collection(db, "expenses"), { ...expense, date: dateValue });
     return { id: ref.id, ...expense };
   },
@@ -121,30 +149,40 @@ export const firestore = {
       orderBy("date", "desc")
     );
     const snap = await getDocs(q);
-    return snap.docs.map(doc => ({ id: doc.id, ...(doc.data() as Expense) }));
+
+    return snap.docs.map(doc => ({
+      id: doc.id,
+      ...(doc.data() as Expense)
+    }));
   },
 
   searchUsersByName: async (text: string, excludeEmails: string[]): Promise<User[]> => {
     if (!text) return [];
+
     const q = query(
       collection(db, "users"),
       where("name", ">=", text),
       where("name", "<=", text + "\uf8ff")
     );
+
     const snap = await getDocs(q);
+
     return snap.docs
-      .map(d => d.data() as User)
+      .map(d => ({ id: d.id, ...(d.data() as User) }))
       .filter(u => !excludeEmails.includes(u.email));
   },
 
   getUsersByEmails: async (emails: string[]): Promise<User[]> => {
     if (!emails.length) return [];
+
     const results: User[] = [];
+
     for (const email of emails) {
       const q = query(collection(db, "users"), where("email", "==", email));
       const snap = await getDocs(q);
-      snap.forEach(doc => results.push(doc.data() as User));
+      snap.forEach(doc => results.push({ uid: doc.id, ...(doc.data() as User) }));
     }
+
     return results;
   },
 

@@ -17,6 +17,7 @@ import {
 
 import { firestore } from "./services/firebaseService";
 import { Expense, User } from "./types";
+import Register from "./components/Register";
 
 type Page = "dashboard" | "transactions" | "debts" | "profile";
 
@@ -36,6 +37,7 @@ const AppContent = () => {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loadingExpenses, setLoadingExpenses] = useState(true);
   const [nameMap, setNameMap] = useState<Map<string, string>>(new Map());
+  const [authPage, setAuthPage] = useState<"login" | "register">("login");
 
   /** --------------------------
    * Fetch Expenses + User Names
@@ -84,9 +86,7 @@ const AppContent = () => {
         ...newExpense.participants,
       ]);
 
-      const missing = Array.from(newEmails).filter(
-        (e) => !nameMap.has(e)
-      );
+      const missing = Array.from(newEmails).filter((e) => !nameMap.has(e));
 
       if (missing.length > 0) {
         const newUsers = await firestore.getUsersByEmails(missing);
@@ -104,16 +104,20 @@ const AppContent = () => {
     loadNewUsers();
 
     setExpenses((prev) =>
-      [newExpense, ...prev].sort(
-        (a, b) => b.date.getTime() - a.date.getTime()
-      )
+      [newExpense, ...prev].sort((a, b) => b.date.getTime() - a.date.getTime())
     );
   };
 
   /** -------------------------
    * Not Logged In → Show Login
    --------------------------*/
-  if (!user) return <Login />;
+  if (!user) {
+    return authPage === "login" ? (
+      <Login goRegister={() => setAuthPage("register")} />
+    ) : (
+      <Register goLogin={() => setAuthPage("login")} />
+    );
+  }
 
   /** -------------------------
    * User Logged In but Name Missing → Show Profile Setup
@@ -139,9 +143,7 @@ const AppContent = () => {
 
     switch (page) {
       case "dashboard":
-        return (
-          <Dashboard expenses={expenses} user={user} nameMap={nameMap} />
-        );
+        return <Dashboard expenses={expenses} user={user} nameMap={nameMap} />;
       case "transactions":
         return (
           <Transactions expenses={expenses} user={user} nameMap={nameMap} />
@@ -158,9 +160,7 @@ const AppContent = () => {
       case "profile":
         return <Profile />;
       default:
-        return (
-          <Dashboard expenses={expenses} user={user} nameMap={nameMap} />
-        );
+        return <Dashboard expenses={expenses} user={user} nameMap={nameMap} />;
     }
   };
 
