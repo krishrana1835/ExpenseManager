@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Expense, User } from '../types';
 import { CalendarIcon, ChevronDownIcon } from './icons';
+import { Timestamp } from "firebase/firestore";
 
 // Fallback for window.Motion (framer-motion optional)
 const Motion = (window as any).Motion || {};
@@ -31,14 +32,29 @@ const Transactions = ({
     const [expandedId, setExpandedId] = useState<string | null>(null);
 
     // Ensure every expense has a real Date object
-    const cleanExpenses = useMemo(
-        () =>
-            expenses.map((e) => ({
-                ...e,
-                date: e.date instanceof Date ? e.date : new Date(e.date)
-            })),
-        [expenses]
-    );
+    
+
+const cleanExpenses = useMemo(
+  () =>
+    expenses.map((e) => {
+      let convertedDate: Date;
+
+      if (e.date instanceof Date) {
+        convertedDate = e.date;
+      } else if (e.date instanceof Timestamp) {
+        convertedDate = e.date.toDate();
+      } else {
+        convertedDate = new Date(e.date);
+      }
+
+      return {
+        ...e,
+        date: convertedDate,
+      };
+    }),
+  [expenses]
+);
+
 
     const filteredExpenses = useMemo(() => {
         const now = new Date();

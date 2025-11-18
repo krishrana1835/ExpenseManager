@@ -1,4 +1,4 @@
-
+import { Timestamp } from "firebase/firestore";
 export interface User {
   uid: string;
   email: string;
@@ -15,9 +15,9 @@ export interface Expense {
   amount: number;
   reason: string;
   category: string;
-  date: Date;
-  paidBy: string; // user email
-  participants: string[]; // array of user emails
+  date: Date | Timestamp | string;
+  paidBy: string;
+  participants: string[];
   splits: Split[];
 }
 
