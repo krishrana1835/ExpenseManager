@@ -1,0 +1,139 @@
+
+import React, { useState, useMemo, Fragment } from 'react';
+import { Expense, User } from '../types';
+import { CalendarIcon, ChevronDownIcon } from './icons';
+
+// Safely access framer-motion from window, providing fallbacks for graceful degradation
+// @ts-ignore
+const Motion = window.Motion || {};
+const AnimatePresence = Motion.AnimatePresence || (({ children }) => <>{children}</>);
+const motion = Motion.motion;
+// A fallback component for motion.div if framer-motion is not loaded
+const MotionDiv = motion ? motion.div : (({ children, ...props }) => <div {...props}>{children}</div>);
+
+type FilterType = 'all' | 'today' | 'yesterday' | 'month' | 'custom';
+
+const isSameDay = (d1: Date, d2: Date) => 
+    d1.getFullYear() === d2.getFullYear() &&
+    d1.getMonth() === d2.getMonth() &&
+    d1.getDate() === d2.getDate();
+
+const Transactions = ({ expenses, user, nameMap }: { expenses: Expense[]; user: User; nameMap: Map<string, string> }) => {
+    const [filter, setFilter] = useState<FilterType>('month');
+    const [customDate, setCustomDate] = useState<string>(new Date().toISOString().split('T')[0]);
+    const [expandedId, setExpandedId] = useState<string | null>(null);
+
+    const filteredExpenses = useMemo(() => {
+        const now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+
+        switch (filter) {
+            case 'today':
+                return expenses.filter(e => isSameDay(e.date, today));
+            case 'yesterday':
+                return expenses.filter(e => isSameDay(e.date, yesterday));
+            case 'month':
+                return expenses.filter(e => e.date.getMonth() === now.getMonth() && e.date.getFullYear() === now.getFullYear());
+            case 'custom':
+                const selectedDate = new Date(customDate);
+                selectedDate.setMinutes(selectedDate.getMinutes() + selectedDate.getTimezoneOffset());
+                return expenses.filter(e => isSameDay(e.date, selectedDate));
+            case 'all':
+            default:
+                return expenses;
+        }
+    }, [expenses, filter, customDate]);
+
+    const FilterButton:React.FC<{ type: FilterType, label: string }> = ({ type, label }) => (
+        <button 
+            onClick={() => setFilter(type)}
+            className={`px-4 py-2 text-sm font-medium rounded-full transition-colors ${filter === type ? 'bg-primary text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600'}`}
+        >
+            {label}
+        </button>
+    );
+
+    return (
+        <div className="p-4 md:p-6 space-y-4">
+            <h1 className="text-3xl font-bold text-gray-800 dark:text-white">Transactions</h1>
+            <div className="flex flex-wrap gap-2 items-center">
+                <FilterButton type="month" label="This Month" />
+                <FilterButton type="today" label="Today" />
+                <FilterButton type="yesterday" label="Yesterday" />
+                <FilterButton type="all" label="All Time" />
+                 <div className="relative">
+                    <input 
+                        type="date" 
+                        value={customDate} 
+                        onChange={e => {
+                            setCustomDate(e.target.value);
+                            setFilter('custom');
+                        }} 
+                        className="bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-full pl-10 pr-4 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                    <CalendarIcon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400" />
+                </div>
+            </div>
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md">
+                <div className="divide-y divide-gray-200 dark:divide-gray-700">
+                    {filteredExpenses.length > 0 ? filteredExpenses.map(exp => {
+                        const userSplit = exp.splits.find(s => s.email === user.email)?.amount || 0;
+                        const isExpanded = expandedId === exp.id;
+                        // A debit occurs when the user has a share in an expense paid by someone else, but it's not a settlement credit.
+                        const isDebit = exp.paidBy !== user.email && userSplit > 0 && exp.category !== 'Settlement';
+
+                        return (
+                           <div key={exp.id}>
+                                <div onClick={() => setExpandedId(isExpanded ? null : exp.id)} className="p-4 flex justify-between items-center cursor-pointer">
+                                    <div>
+                                        <p className="font-semibold text-gray-800 dark:text-white">{exp.reason}</p>
+                                        <p className="text-sm text-gray-500 dark:text-gray-400">{exp.date.toLocaleDateString()} &middot; {exp.category}</p>
+                                        <p className="text-xs text-gray-400">Paid by {exp.paidBy === user.email ? 'you' : nameMap.get(exp.paidBy) || exp.paidBy.split('@')[0]}</p>
+                                    </div>
+                                    <div className="text-right flex items-center gap-4">
+                                         <div>
+                                            <p className={`font-bold text-lg ${isDebit ? 'text-rose-500' : 'text-emerald-500'}`}>
+                                                {isDebit && '-'}
+                                                {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(userSplit)}
+                                            </p>
+                                            <p className="text-xs text-gray-400">Total: {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(exp.amount)}</p>
+                                        </div>
+                                        <ChevronDownIcon className={`w-5 h-5 text-gray-400 transition-transform ${isExpanded ? 'transform rotate-180' : ''}`} />
+                                    </div>
+                                </div>
+                                <AnimatePresence>
+                                {isExpanded && (
+                                    <MotionDiv
+                                        initial={{ opacity: 0, height: 0 }}
+                                        animate={{ opacity: 1, height: 'auto' }}
+                                        exit={{ opacity: 0, height: 0 }}
+                                        transition={{ duration: 0.3, ease: 'easeInOut' }}
+                                        className="overflow-hidden"
+                                    >
+                                        <div className="px-4 pb-4 pt-2 border-t border-gray-200 dark:border-gray-700">
+                                            <h4 className="font-semibold text-sm text-gray-700 dark:text-gray-300 mb-2">Split Details:</h4>
+                                            <ul className="space-y-1 text-sm">
+                                                {exp.splits.map(split => (
+                                                    <li key={split.email} className="flex justify-between text-gray-600 dark:text-gray-400">
+                                                        <span>{nameMap.get(split.email) || split.email.split('@')[0]}:</span>
+                                                        <span>{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(split.amount)}</span>
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    </MotionDiv>
+                                )}
+                                </AnimatePresence>
+                           </div>
+                        );
+                    }) : (
+                        <p className="p-8 text-center text-gray-500 dark:text-gray-400">No transactions found for this period.</p>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+export default Transactions;

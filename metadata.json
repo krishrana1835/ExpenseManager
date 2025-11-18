@@ -1,0 +1,5 @@
+{
+  "name": "Copy of Expense Manager",
+  "description": "A modern expense manager to track and split bills with friends. It features Firebase authentication, expense categorization, detailed transaction history, and debt tracking, all presented in a clean, user-friendly interface with Indian currency support.",
+  "requestFramePermissions": []
+}
