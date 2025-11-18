@@ -8,7 +8,9 @@ import {
   createUserWithEmailAndPassword,
   signOut as firebaseSignOut,
   onAuthStateChanged as firebaseOnAuthStateChanged,
-  User as FirebaseUser
+  User as FirebaseUser,
+  GoogleAuthProvider,
+  signInWithPopup
 } from "firebase/auth";
 import {
   getFirestore,
@@ -45,6 +47,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const authInstance = getAuth(app);
 const db = getFirestore(app);
+const googleProvider = new GoogleAuthProvider();
 
 // ------------------------------
 //  AUTH SERVICE
@@ -54,14 +57,20 @@ export const auth = {
     return signInWithEmailAndPassword(authInstance, email, password);
   },
 
-  register: async (email: string, password: string) => {
+  register: async (email: string, password: string, username: string) => {
     const cred = await createUserWithEmailAndPassword(authInstance, email, password);
+
     await setDoc(doc(db, "users", cred.user.uid), {
       email,
-      name: "",
+      name: username,
       createdAt: Timestamp.now()
     });
+
     return cred;
+  },
+
+  signInWithGoogle: () => {
+    return signInWithPopup(authInstance, googleProvider);
   },
 
   signOut: () => firebaseSignOut(authInstance),
