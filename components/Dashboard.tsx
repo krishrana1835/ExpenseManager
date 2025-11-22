@@ -87,7 +87,7 @@ const Dashboard = ({
   }, [safeExpenses, user.email, safeNameMap]);
 
 
-  // -------------------- MONTHLY EXPENSES CALCULATION (FIXED) --------------------
+  // -------------------- MONTHLY EXPENSES CALCULATION --------------------
 
   // 1. Filter expenses belonging to the current month
   const currentMonthExpenses = useMemo(() => {
@@ -120,12 +120,11 @@ const Dashboard = ({
   }, [safeExpenses]);
 
 
-  // 2. Calculate Total Spent This Month (THE FIX)
+  // 2. Calculate Total Spent This Month
   const totalSpentThisMonth = useMemo(() => {
     return currentMonthExpenses.reduce((sum, exp) => {
-      // A "Settlement" is just moving existing debt around. It is not new "spending".
-      // Therefore, we completely ignore settlements in this calculation.
-      if (exp.category === 'Settlement') {
+      // Ignore Settlements and Transfers in monthly spending
+      if (exp.category === 'Settlement' || exp.category === 'Transfer') {
           return sum;
       }
 
@@ -135,13 +134,12 @@ const Dashboard = ({
       const userShareAmount = userSplit?.amount || 0;
 
       // Add my share to the running total.
-      // It doesn't matter if I paid or someone else paid; my share is what I "spent".
       return sum + userShareAmount;
     }, 0);
   }, [currentMonthExpenses, user.email]);
 
 
-  // -------------------- RENDER (UI remains largely the same) --------------------
+  // -------------------- RENDER --------------------
   return (
     <div className="p-4 md:p-6 space-y-6">
       <header>
@@ -187,7 +185,6 @@ const Dashboard = ({
                 </p>
               ) : (
                 safeExpenses.slice(0, 5).map((exp) => {
-                  // Small fix in render logic for date display consistancy
                   let expDate: Date;
                    if (exp.date instanceof Date) expDate = exp.date;
                    else if (exp.date instanceof Timestamp) expDate = exp.date.toDate();
@@ -198,18 +195,24 @@ const Dashboard = ({
                   const userSplitAmount =
                     splits.find((s) => s.email === user.email)?.amount || 0;
 
+                  // Check for both Settlement and Transfer
+                  const isTransfer = exp.category === "Settlement" || exp.category === "Transfer";
+
+                  // Debit: I owe someone else OR I sent money (Transfer)
                   const isDebit =
-                    (exp.paidBy !== user.email &&
-                      userSplitAmount > 0 &&
-                      exp.category !== "Settlement") ||
-                    (exp.paidBy === user.email &&
-                      exp.category === "Settlement");
+                    (exp.paidBy !== user.email && userSplitAmount > 0 && !isTransfer) ||
+                    (exp.paidBy === user.email && isTransfer);
 
+                  // Credit: Someone sent me money
                   const isCredit =
-                    exp.paidBy !== user.email && exp.category === "Settlement";
+                    exp.paidBy !== user.email && isTransfer;
 
+                  // Amount Logic:
+                  // If Transfer/Settlement and I paid -> Show Total Amount I sent
+                  // If Transfer/Settlement and I received -> Show My Split (Amount I received)
+                  // If Regular Expense -> Show My Split (Amount I owe)
                   const displayAmount =
-                    exp.category === "Settlement" && exp.paidBy === user.email
+                    isTransfer && exp.paidBy === user.email
                       ? exp.amount
                       : userSplitAmount;
 

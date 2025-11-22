@@ -32,29 +32,26 @@ const Transactions = ({
     const [expandedId, setExpandedId] = useState<string | null>(null);
 
     // Ensure every expense has a real Date object
-    
+    const cleanExpenses = useMemo(
+      () =>
+        expenses.map((e) => {
+          let convertedDate: Date;
 
-const cleanExpenses = useMemo(
-  () =>
-    expenses.map((e) => {
-      let convertedDate: Date;
+          if (e.date instanceof Date) {
+            convertedDate = e.date;
+          } else if (e.date instanceof Timestamp) {
+            convertedDate = e.date.toDate();
+          } else {
+            convertedDate = new Date(e.date);
+          }
 
-      if (e.date instanceof Date) {
-        convertedDate = e.date;
-      } else if (e.date instanceof Timestamp) {
-        convertedDate = e.date.toDate();
-      } else {
-        convertedDate = new Date(e.date);
-      }
-
-      return {
-        ...e,
-        date: convertedDate,
-      };
-    }),
-  [expenses]
-);
-
+          return {
+            ...e,
+            date: convertedDate,
+          };
+        }),
+      [expenses]
+    );
 
     const filteredExpenses = useMemo(() => {
         const now = new Date();
@@ -135,18 +132,18 @@ const cleanExpenses = useMemo(
 
                             const isExpanded = expandedId === exp.id;
 
+                            // Handle both "Settlement" and "Transfer"
+                            const isTransfer = exp.category === 'Settlement' || exp.category === 'Transfer';
+
                             const isDebit =
-                                (exp.paidBy !== user.email &&
-                                    userSplit > 0 &&
-                                    exp.category !== 'Settlement') ||
-                                (exp.paidBy === user.email &&
-                                    exp.category === 'Settlement');
+                                (exp.paidBy !== user.email && userSplit > 0 && !isTransfer) ||
+                                (exp.paidBy === user.email && isTransfer);
 
                             const isCredit =
-                                exp.paidBy !== user.email && exp.category === 'Settlement';
+                                exp.paidBy !== user.email && isTransfer;
 
                             const displayAmount =
-                                exp.category === 'Settlement' && exp.paidBy === user.email
+                                isTransfer && exp.paidBy === user.email
                                     ? exp.amount
                                     : userSplit;
 
