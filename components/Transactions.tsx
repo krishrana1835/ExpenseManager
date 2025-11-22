@@ -316,7 +316,12 @@ const Transactions = ({
                               </h4>
 
                               <p className="text-gray-600 dark:text-gray-400 text-sm">
-                                {exp.category === "Settlement" ? "Paid by" : "Transferred from"}:{" "}
+                                {exp.category === "Settlement"
+                                  ? "Paid by"
+                                  : exp.paidBy === user.email
+                                    ? "Transferred to"
+                                    : "Transferred by"}
+                                :{" "}
                                 <span className="font-medium">
                                   {nameMap.get(
                                     exp.paidBy === user.email
@@ -326,10 +331,11 @@ const Transactions = ({
                                       : exp.paidBy
                                   ) ||
                                     (exp.paidBy === user.email
-                                      ? exp.splits
-                                          .find((s) => s.email !== user.email)
-                                          ?.email.split("@")[0]
-                                      : exp.paidBy.split("@")[0])}
+                                      ? exp.splits.find(
+                                          (s) => s.email !== user.email
+                                        )?.email
+                                      : exp.paidBy
+                                    ).split("@")[0]}
                                 </span>
                               </p>
                             </div>
