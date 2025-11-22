@@ -318,8 +318,8 @@ const Transactions = ({
                               <p className="text-gray-600 dark:text-gray-400 text-sm">
                                 {exp.category === "Settlement"
                                   ? exp.paidBy === user.email
-                                    ? "Paid by"
-                                    : "Transferred from"
+                                    ? "Transfered to"
+                                    : "Transferred by"
                                   : exp.paidBy === user.email
                                     ? "Transferred to"
                                     : "Transferred by"}
