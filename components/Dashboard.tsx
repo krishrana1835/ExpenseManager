@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { Expense, User, FriendBalance } from "../types";
 import { Timestamp } from "firebase/firestore";
 
@@ -30,11 +30,12 @@ const Dashboard = ({
   nameMap: Map<string, string>;
 }) => {
   // SAFE DEFAULTS for empty / undefined Firebase data
-  const safeExpenses: Expense[] = Array.isArray(expenses) ? expenses : [];
-  const safeNameMap = nameMap instanceof Map ? nameMap : new Map();
+  const safeExpenses: Expense[] = useMemo(() => Array.isArray(expenses) ? expenses : [], [expenses]);
+  const safeNameMap = useMemo(() => nameMap instanceof Map ? nameMap : new Map(), [nameMap]);
 
   // -------------------- BALANCE CALCULATION --------------------
-  const calculateBalances = () => {
+  // (Kept existing logic, wrapped in useMemo for performance)
+  const { totalOwedToUser, totalUserOwes, allBalances } = useMemo(() => {
     if (!safeExpenses.length) {
       return { totalOwedToUser: 0, totalUserOwes: 0, allBalances: [] };
     }
@@ -48,6 +49,7 @@ const Dashboard = ({
         : [];
 
       if (expense.paidBy === user.email) {
+        // I paid, add positive balances to others
         splits.forEach((split) => {
           if (split.email !== user.email) {
             balances[split.email] =
@@ -55,6 +57,7 @@ const Dashboard = ({
           }
         });
       } else if (participants.includes(user.email)) {
+        // Someone else paid, and I am involved. Subtract my share from the payer's balance.
         const userSplit = splits.find((s) => s.email === user.email);
         if (userSplit) {
           balances[expense.paidBy] =
@@ -63,7 +66,7 @@ const Dashboard = ({
       }
     });
 
-    const allBalances: FriendBalance[] = Object.entries(balances)
+    const calculatedBalances: FriendBalance[] = Object.entries(balances)
       .map(([email, balance]) => ({
         email,
         balance,
@@ -72,59 +75,73 @@ const Dashboard = ({
       .filter((b) => Math.abs(b.balance) > 0.01)
       .sort((a, b) => b.balance - a.balance);
 
-    let totalOwedToUser = 0;
-    let totalUserOwes = 0;
+    let owedToUser = 0;
+    let userOwes = 0;
 
-    allBalances.forEach((friend) => {
-      if (friend.balance > 0) totalOwedToUser += friend.balance;
-      else totalUserOwes += Math.abs(friend.balance);
+    calculatedBalances.forEach((friend) => {
+      if (friend.balance > 0) owedToUser += friend.balance;
+      else userOwes += Math.abs(friend.balance);
     });
 
-    return { totalOwedToUser, totalUserOwes, allBalances };
-  };
+    return { totalOwedToUser: owedToUser, totalUserOwes: userOwes, allBalances: calculatedBalances };
+  }, [safeExpenses, user.email, safeNameMap]);
 
-  const { totalOwedToUser, totalUserOwes, allBalances } = calculateBalances();
 
-  // -------------------- MONTHLY EXPENSES --------------------
-  const currentMonthExpenses = safeExpenses.filter((exp) => {
-    let expDate: Date;
+  // -------------------- MONTHLY EXPENSES CALCULATION (FIXED) --------------------
 
-    if (exp.date instanceof Date) {
-      expDate = exp.date;
-    } else if (typeof exp.date === "string") {
-      expDate = new Date(exp.date);
-    } else if (
-      exp.date &&
-      typeof exp.date === "object" &&
-      "seconds" in exp.date
-    ) {
-      expDate = new Date(exp.date.seconds * 1000); // Firestore timestamp
-    } else {
-      expDate = new Date(); // fallback
-    }
-
-    if (!expDate) return false;
-
+  // 1. Filter expenses belonging to the current month
+  const currentMonthExpenses = useMemo(() => {
     const today = new Date();
-    return (
-      expDate.getMonth() === today.getMonth() &&
-      expDate.getFullYear() === today.getFullYear()
-    );
-  });
+    const currentMonth = today.getMonth();
+    const currentYear = today.getFullYear();
 
-  const totalSpentThisMonth = currentMonthExpenses.reduce((sum, exp) => {
-    const splits = Array.isArray(exp.splits) ? exp.splits : [];
-    const userSplitAmount =
-      splits.find((s) => s.email === user.email)?.amount || 0;
+    return safeExpenses.filter((exp) => {
+      let expDate: Date;
 
-    if (exp.category === "Settlement" && exp.paidBy !== user.email) {
-      return sum - userSplitAmount;
-    }
+      // Robust Date Parsing for different Firebase return types
+      if (exp.date instanceof Date) {
+        expDate = exp.date;
+      } else if (exp.date instanceof Timestamp) {
+        expDate = exp.date.toDate();
+      } else if (typeof exp.date === "string") {
+        expDate = new Date(exp.date);
+      } else if ( exp.date && typeof exp.date === "object" && "seconds" in exp.date ) {
+          // Fallback for raw Firestore object if not an instance of Timestamp
+          expDate = new Date((exp.date as any).seconds * 1000);
+      } else {
+        return false; // Skip invalid dates
+      }
 
-    return sum + userSplitAmount;
-  }, 0);
+      return (
+        expDate.getMonth() === currentMonth &&
+        expDate.getFullYear() === currentYear
+      );
+    });
+  }, [safeExpenses]);
 
-  // -------------------- RENDER --------------------
+
+  // 2. Calculate Total Spent This Month (THE FIX)
+  const totalSpentThisMonth = useMemo(() => {
+    return currentMonthExpenses.reduce((sum, exp) => {
+      // A "Settlement" is just moving existing debt around. It is not new "spending".
+      // Therefore, we completely ignore settlements in this calculation.
+      if (exp.category === 'Settlement') {
+          return sum;
+      }
+
+      const splits = Array.isArray(exp.splits) ? exp.splits : [];
+      // Find my share of this expense.
+      const userSplit = splits.find((s) => s.email === user.email);
+      const userShareAmount = userSplit?.amount || 0;
+
+      // Add my share to the running total.
+      // It doesn't matter if I paid or someone else paid; my share is what I "spent".
+      return sum + userShareAmount;
+    }, 0);
+  }, [currentMonthExpenses, user.email]);
+
+
+  // -------------------- RENDER (UI remains largely the same) --------------------
   return (
     <div className="p-4 md:p-6 space-y-6">
       <header>
@@ -170,25 +187,16 @@ const Dashboard = ({
                 </p>
               ) : (
                 safeExpenses.slice(0, 5).map((exp) => {
+                  // Small fix in render logic for date display consistancy
+                  let expDate: Date;
+                   if (exp.date instanceof Date) expDate = exp.date;
+                   else if (exp.date instanceof Timestamp) expDate = exp.date.toDate();
+                   else if (typeof exp.date === "string") expDate = new Date(exp.date);
+                   else expDate = new Date();
+
                   const splits = Array.isArray(exp.splits) ? exp.splits : [];
                   const userSplitAmount =
                     splits.find((s) => s.email === user.email)?.amount || 0;
-
-                  let expDate: Date;
-
-                  if (exp.date instanceof Date) {
-                    expDate = exp.date;
-                  } else if (typeof exp.date === "string") {
-                    expDate = new Date(exp.date);
-                  } else if (
-                    exp.date &&
-                    typeof exp.date === "object" &&
-                    "seconds" in exp.date
-                  ) {
-                    expDate = new Date(exp.date.seconds * 1000); // Firestore timestamp
-                  } else {
-                    expDate = new Date(); // fallback
-                  }
 
                   const isDebit =
                     (exp.paidBy !== user.email &&
@@ -211,7 +219,7 @@ const Dashboard = ({
                       className="p-4 flex justify-between items-center"
                     >
                       <div>
-                        <p className="font-semibold text-gray-800 dark:text-white">
+                        <p className="font-semibold text-gray-800 dark:text-white truncate mr-2">
                           {exp.reason || "No description"}
                         </p>
                         <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -220,14 +228,14 @@ const Dashboard = ({
                         </p>
                       </div>
 
-                      <div className="text-right">
+                      <div className="text-right whitespace-nowrap">
                         <p
                           className={`font-bold ${
                             isCredit
                               ? "text-emerald-500"
                               : isDebit
                                 ? "text-rose-500"
-                                : "text-emerald-500"
+                                : "text-gray-500 dark:text-gray-300"
                           }`}
                         >
                           {isDebit ? "-" : isCredit ? "+" : ""}
