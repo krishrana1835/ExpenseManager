@@ -238,7 +238,7 @@ const Transactions = ({
                                                     <button
                                                         onClick={(e) => handleDeleteClick(e, exp)}
                                                         disabled={deletingId === exp.id}
-                                                        className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full transition-all opacity-0 group-hover:opacity-100 focus:opacity-100"
+                                                        className="p-2 text-red-600 bg-red-400 rounded-full transition-all opacity-0 group-hover:opacity-100 focus:opacity-100"
                                                         title="Delete transaction"
                                                     >
                                                         {deletingId === exp.id ? (
