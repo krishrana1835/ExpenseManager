@@ -118,9 +118,9 @@ const SettleDebtModal: React.FC<SettleDebtModalProps> = ({
                 disabled={!!error || !amount}
                 className="px-4 py-2 text-sm font-medium 
                        text-gray-700 dark:text-gray-200
-                       bg-primary rounded-md outline-1
+                       bg-primary rounded-md outline-gray-500
                        hover:bg-primary-600
-                       disabled:bg-gray-400 disabled:cursor-not-allowed"
+                       disabled:bg-gray-400 disabled:cursor-not-allowed disabled:outline-0"
               >
                 {mode === "pay" ? "Pay Amount" : "Receive Amount"}
               </button>
