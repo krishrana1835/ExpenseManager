@@ -254,35 +254,38 @@ const Transactions = ({
                       </div>
 
                       <div className="flex items-center gap-2">
-                        {canDelete && (
+                        {/* Delete button (ONLY visible when expanded) */}
+                        {canDelete && isExpanded && (
                           <button
                             onClick={(e) => handleDeleteClick(e, exp)}
                             disabled={deletingId === exp.id}
                             className="
-                                p-2 rounded-full 
-                                bg-red-100 dark:bg-red-900/40 
-                                text-red-600 dark:text-red-400
-                                hover:bg-red-200 dark:hover:bg-red-900/60 
-                                hover:text-red-700 dark:hover:text-red-300
-                                transition-all shadow-sm
-                                disabled:opacity-60 disabled:cursor-not-allowed
-                            "
+                                    p-2 rounded-full 
+                                    bg-red-100 dark:bg-red-900/40 
+                                    text-red-600 dark:text-red-400
+                                    hover:bg-red-200 dark:hover:bg-red-900/60 
+                                    hover:text-red-700 dark:hover:text-red-300
+                                    transition-all shadow-sm
+                                    disabled:opacity-60 disabled:cursor-not-allowed
+                                "
                             title="Delete transaction"
                           >
                             {deletingId === exp.id ? (
                               <div
                                 className="
-                                    w-5 h-5 border-2 
-                                    border-red-500 dark:border-red-400
-                                    border-t-transparent
-                                    rounded-full animate-spin
-                                "
+                                        w-5 h-5 border-2 
+                                        border-red-500 dark:border-red-400
+                                        border-t-transparent
+                                        rounded-full animate-spin
+                                    "
                               />
                             ) : (
                               <TrashIcon className="w-5 h-5" />
                             )}
                           </button>
                         )}
+
+                        {/* Expand icon */}
                         <ChevronDownIcon
                           className={`w-5 h-5 text-gray-400 transition-transform ${
                             isExpanded ? "rotate-180" : ""
