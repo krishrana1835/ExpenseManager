@@ -479,18 +479,19 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
                 disabled={
                   loading || (splitMode === "manual" && !isManualSplitValid)
                 }
-                className="flex items-center gap-2 px-6 py-3 text-sm font-medium 
-               text-white dark:text-gray-200 
-               bg-primary rounded-lg shadow-sm 
-               hover:bg-primary-600 
-               focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary 
-               disabled:bg-gray-400 disabled:cursor-not-allowed 
-               transition-colors dark:focus:ring-offset-gray-800"
+                className="flex items-center gap-2 px-6 py-3 text-sm font-medium
+             text-white dark:text-white
+             bg-primary dark:bg-primary-500
+             rounded-lg shadow-sm
+             hover:bg-primary-600 dark:hover:bg-primary-400
+             focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary
+             disabled:bg-gray-400 disabled:cursor-not-allowed
+             transition-colors dark:focus:ring-offset-gray-800"
               >
                 {loading ? (
                   <>
                     <svg
-                      className="animate-spin -ml-1 mr-2 h-5 w-5 text-white dark:text-gray-200"
+                      className="animate-spin -ml-1 mr-2 h-5 w-5 text-white"
                       xmlns="http://www.w3.org/2000/svg"
                       fill="none"
                       viewBox="0 0 24 24"

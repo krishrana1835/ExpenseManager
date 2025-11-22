@@ -220,7 +220,12 @@ const AppContent = () => {
 
           <button
             onClick={() => setIsModalOpen(true)}
-            className="w-16 h-16 -mt-8 bg-primary rounded-full text-gray-600 dark:text-white flex items-center justify-center shadow-xl hover:scale-110 transition-transform"
+            className="w-16 h-16 -mt-8 rounded-xl 
+             bg-primary 
+             text-gray-700 dark:text-gray-100
+             flex items-center justify-center 
+             shadow-xl hover:scale-110 
+             transition-transform"
           >
             <PlusIcon className="w-8 h-8" />
           </button>
