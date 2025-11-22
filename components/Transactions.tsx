@@ -136,9 +136,19 @@ const cleanExpenses = useMemo(
                             const isExpanded = expandedId === exp.id;
 
                             const isDebit =
-                                exp.paidBy !== user.email &&
-                                userSplit > 0 &&
-                                exp.category !== 'Settlement';
+                                (exp.paidBy !== user.email &&
+                                    userSplit > 0 &&
+                                    exp.category !== 'Settlement') ||
+                                (exp.paidBy === user.email &&
+                                    exp.category === 'Settlement');
+
+                            const isCredit =
+                                exp.paidBy !== user.email && exp.category === 'Settlement';
+
+                            const displayAmount =
+                                exp.category === 'Settlement' && exp.paidBy === user.email
+                                    ? exp.amount
+                                    : userSplit;
 
                             return (
                                 <div key={exp.id}>
@@ -161,7 +171,7 @@ const cleanExpenses = useMemo(
                                                 {exp.paidBy === user.email
                                                     ? 'you'
                                                     : nameMap.get(exp.paidBy) ||
-                                                      exp.paidBy.split('@')[0]}
+                                                    exp.paidBy.split('@')[0]}
                                             </p>
                                         </div>
 
@@ -169,16 +179,18 @@ const cleanExpenses = useMemo(
                                             <div>
                                                 <p
                                                     className={`font-bold text-lg ${
-                                                        isDebit
-                                                            ? 'text-rose-500'
-                                                            : 'text-emerald-500'
+                                                        isCredit
+                                                            ? 'text-emerald-500'
+                                                            : isDebit
+                                                                ? 'text-rose-500'
+                                                                : 'text-emerald-500'
                                                     }`}
                                                 >
-                                                    {isDebit && '-'}
+                                                    {isDebit ? '-' : isCredit ? '+' : ''}
                                                     {new Intl.NumberFormat('en-IN', {
                                                         style: 'currency',
                                                         currency: 'INR'
-                                                    }).format(userSplit)}
+                                                    }).format(displayAmount || 0)}
                                                 </p>
                                                 <p className="text-xs text-gray-400">
                                                     Total:{' '}
