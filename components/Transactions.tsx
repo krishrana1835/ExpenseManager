@@ -309,30 +309,59 @@ const Transactions = ({
                         className="overflow-hidden"
                       >
                         <div className="px-4 pb-4 pt-2 border-t border-gray-200 dark:border-gray-700">
-                          <h4 className="font-semibold text-sm text-gray-700 dark:text-gray-300 mb-2">
-                            Split Details:
-                          </h4>
+                          {isTransfer ? (
+                            <div>
+                              <h4 className="font-semibold text-sm text-gray-700 dark:text-gray-300 mb-2">
+                                Transfer Details:
+                              </h4>
 
-                          <ul className="space-y-1 text-sm">
-                            {exp.splits.map((split) => (
-                              <li
-                                key={split.email}
-                                className="flex justify-between text-gray-600 dark:text-gray-400"
-                              >
-                                <span>
-                                  {nameMap.get(split.email) ||
-                                    split.email.split("@")[0]}
-                                  :
+                              <p className="text-gray-600 dark:text-gray-400 text-sm">
+                                Transferred to:{" "}
+                                <span className="font-medium">
+                                  {nameMap.get(
+                                    exp.paidBy === user.email
+                                      ? exp.splits.find(
+                                          (s) => s.email !== user.email
+                                        )?.email
+                                      : exp.paidBy
+                                  ) ||
+                                    (exp.paidBy === user.email
+                                      ? exp.splits
+                                          .find((s) => s.email !== user.email)
+                                          ?.email.split("@")[0]
+                                      : exp.paidBy.split("@")[0])}
                                 </span>
-                                <span>
-                                  {new Intl.NumberFormat("en-IN", {
-                                    style: "currency",
-                                    currency: "INR",
-                                  }).format(split.amount)}
-                                </span>
-                              </li>
-                            ))}
-                          </ul>
+                              </p>
+                            </div>
+                          ) : (
+                            // --- your existing Split Details block ---
+                            <>
+                              <h4 className="font-semibold text-sm text-gray-700 dark:text-gray-300 mb-2">
+                                Split Details:
+                              </h4>
+
+                              <ul className="space-y-1 text-sm">
+                                {exp.splits.map((split) => (
+                                  <li
+                                    key={split.email}
+                                    className="flex justify-between text-gray-600 dark:text-gray-400"
+                                  >
+                                    <span>
+                                      {nameMap.get(split.email) ||
+                                        split.email.split("@")[0]}
+                                      :
+                                    </span>
+                                    <span>
+                                      {new Intl.NumberFormat("en-IN", {
+                                        style: "currency",
+                                        currency: "INR",
+                                      }).format(split.amount)}
+                                    </span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </>
+                          )}
                         </div>
                       </MotionDiv>
                     )}
