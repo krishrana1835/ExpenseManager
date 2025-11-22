@@ -20,12 +20,18 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
   onClose,
   onAddExpense,
 }) => {
+  // Mode: 'expense' or 'transfer' (Send Money)
+  const [mode, setMode] = useState<"expense" | "transfer">("expense");
+
   const [amount, setAmount] = useState("");
   const [reason, setReason] = useState("");
   const [category, setCategory] = useState(EXPENSE_CATEGORIES[0]);
+  
+  // For transfer mode, this list will strictly be [currentUser, recipient]
   const [participants, setParticipants] = useState<Participant[]>([
     { email: user.email, name: user.name || user.email },
   ]);
+  
   const [participantSearch, setParticipantSearch] = useState("");
   const [suggestions, setSuggestions] = useState<User[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -36,6 +42,23 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
 
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // Reset certain fields when switching modes
+  const handleModeChange = (newMode: "expense" | "transfer") => {
+    setMode(newMode);
+    setParticipants([{ email: user.email, name: user.name || user.email }]); // Reset to just me
+    setSplitMode("equal");
+    setManualSplits({});
+    setError("");
+    
+    if (newMode === "transfer") {
+      setCategory("Transfer");
+      setReason("Money Transfer");
+    } else {
+      setCategory(EXPENSE_CATEGORIES[0]);
+      setReason("");
+    }
+  };
 
   useEffect(() => {
     const handler = setTimeout(async () => {
@@ -56,6 +79,7 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
     return () => clearTimeout(handler);
   }, [participantSearch, participants]);
 
+  // Calculate Splits
   useEffect(() => {
     const totalAmount = parseFloat(amount);
     if (isNaN(totalAmount) || totalAmount <= 0 || participants.length === 0) {
@@ -63,6 +87,23 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
       return;
     }
 
+    // TRANSFER MODE LOGIC:
+    // You pay full amount, Recipient 'owes' full amount (receives value).
+    // Split: Me: 0, Recipient: Total.
+    if (mode === "transfer") {
+        const recipient = participants.find(p => p.email !== user.email);
+        if (recipient) {
+            setSplits([
+                { email: user.email, amount: 0 },
+                { email: recipient.email, amount: totalAmount }
+            ]);
+        } else {
+            setSplits([]);
+        }
+        return;
+    }
+
+    // EXPENSE MODE LOGIC:
     if (splitMode === "equal") {
       const amountPerPerson = parseFloat(
         (totalAmount / participants.length).toFixed(2)
@@ -87,15 +128,23 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
       }));
       setSplits(newSplits);
     }
-    console.log(amount);
-  }, [amount, participants, splitMode, manualSplits]);
+  }, [amount, participants, splitMode, manualSplits, mode, user.email]);
 
   const handleAddParticipant = (participant: User) => {
     if (participant.email && participant.name) {
-      setParticipants([
-        ...participants,
-        { email: participant.email, name: participant.name },
-      ]);
+      // If transfer mode, we only allow one recipient (plus the sender)
+      if (mode === "transfer" && participants.length >= 2) {
+        // Replace the existing recipient
+        setParticipants([
+            participants[0], // Keep 'Me'
+            { email: participant.email, name: participant.name }
+        ]);
+      } else {
+        setParticipants([
+          ...participants,
+          { email: participant.email, name: participant.name },
+        ]);
+      }
     }
     setParticipantSearch("");
     setSuggestions([]);
@@ -113,7 +162,7 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
   };
 
   const { manualTotal, isManualSplitValid } = useMemo(() => {
-    if (splitMode !== "manual")
+    if (splitMode !== "manual" || mode === "transfer")
       return { manualTotal: 0, isManualSplitValid: true };
     const manualTotal = splits.reduce((sum, s) => sum + (s.amount || 0), 0);
     const totalAmountNum = parseFloat(amount) || 0;
@@ -121,7 +170,7 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
       manualTotal,
       isManualSplitValid: Math.abs(manualTotal - totalAmountNum) < 0.01,
     };
-  }, [splitMode, splits, amount]);
+  }, [splitMode, splits, amount, mode]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -135,7 +184,13 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
       setError("Please fill all required fields.");
       return;
     }
-    if (splitMode === "manual" && !isManualSplitValid) {
+
+    if (mode === "transfer" && participants.length < 2) {
+      setError("Please select a recipient to send money to.");
+      return;
+    }
+
+    if (splitMode === "manual" && !isManualSplitValid && mode === 'expense') {
       setError("The split amounts must add up to the total amount.");
       return;
     }
@@ -146,7 +201,7 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
       const newExpenseData = {
         amount: parseFloat(amount),
         reason,
-        category,
+        category, // Will be 'Transfer' in transfer mode
         date: new Date(),
         paidBy: user.email,
         participants: participants.map((p) => p.email),
@@ -156,6 +211,7 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
       onAddExpense(addedExpense);
       onClose();
     } catch (err) {
+      console.error(err);
       setError("Failed to add expense. Please try again.");
     } finally {
       setLoading(false);
@@ -166,10 +222,38 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
     <div className="fixed inset-0 bg-black/60 dark:bg-black/80 flex items-center justify-center z-50 p-4 transition-opacity">
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-lg max-h-[95vh] overflow-y-auto transform transition-all sm:scale-100 scale-95">
         <div className="p-6 sm:p-8">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white tracking-tight">
-              New Expense
-            </h2>
+          <div className="flex justify-between items-start mb-6">
+            <div>
+                <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white tracking-tight mb-4">
+                {mode === 'transfer' ? 'Send Money' : 'New Expense'}
+                </h2>
+                {/* Mode Toggle */}
+                <div className="flex space-x-2 bg-gray-100 dark:bg-gray-700 p-1 rounded-lg">
+                    <button
+                        type="button"
+                        onClick={() => handleModeChange('expense')}
+                        className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
+                            mode === 'expense' 
+                            ? 'bg-white dark:bg-gray-600 shadow text-primary' 
+                            : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'
+                        }`}
+                    >
+                        Expense
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => handleModeChange('transfer')}
+                        className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
+                            mode === 'transfer' 
+                            ? 'bg-white dark:bg-gray-600 shadow text-primary' 
+                            : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'
+                        }`}
+                    >
+                        Transfer
+                    </button>
+                </div>
+            </div>
+            
             <button
               onClick={onClose}
               className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 text-3xl leading-none rounded-full p-1 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
@@ -178,9 +262,10 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
               &times;
             </button>
           </div>
+
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-              <div>
+              <div className={mode === 'transfer' ? 'col-span-2' : ''}>
                 <label
                   htmlFor="amount"
                   className="block text-sm font-medium text-gray-700 dark:text-gray-300"
@@ -196,36 +281,41 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
                     className="block w-full px-4 py-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary text-gray-900 dark:text-white sm:text-lg placeholder-gray-400 dark:placeholder-gray-500 transition-shadow"
                     placeholder="0.00"
                     required
+                    autoFocus
                   />
                 </div>
               </div>
-              <div>
-                <label
-                  htmlFor="category"
-                  className="block text-sm font-medium text-gray-700 dark:text-gray-300"
-                >
-                  Category
-                </label>
-                <select
-                  id="category"
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                  className="mt-1 block w-full px-4 py-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary text-gray-900 dark:text-white sm:text-lg transition-shadow"
-                >
-                  {EXPENSE_CATEGORIES.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              
+              {mode === 'expense' && (
+                  <div>
+                    <label
+                      htmlFor="category"
+                      className="block text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >
+                      Category
+                    </label>
+                    <select
+                      id="category"
+                      value={category}
+                      onChange={(e) => setCategory(e.target.value)}
+                      className="mt-1 block w-full px-4 py-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary text-gray-900 dark:text-white sm:text-lg transition-shadow"
+                    >
+                      {EXPENSE_CATEGORIES.map((c) => (
+                        <option key={c} value={c}>
+                          {c}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+              )}
             </div>
+
             <div>
               <label
                 htmlFor="reason"
                 className="block text-sm font-medium text-gray-700 dark:text-gray-300"
               >
-                Reason
+                {mode === 'transfer' ? 'Note' : 'Reason'}
               </label>
               <input
                 type="text"
@@ -233,7 +323,7 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
                 className="mt-1 block w-full px-4 py-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary text-gray-900 dark:text-white sm:text-lg placeholder-gray-400 dark:placeholder-gray-500 transition-shadow"
-                placeholder="e.g., Team Lunch"
+                placeholder={mode === 'transfer' ? "e.g., Paying back for lunch" : "e.g., Team Lunch"}
                 required
               />
             </div>
@@ -244,42 +334,47 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
                 className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2"
               >
                 <UserGroupIcon className="w-5 h-5 text-gray-500 dark:text-gray-400" />
-                Split with
+                {mode === 'transfer' ? 'Recipient' : 'Split with'}
               </label>
-              <div className="mt-1 relative rounded-md shadow-sm">
-                <input
-                  type="text"
-                  id="participantSearch"
-                  value={participantSearch}
-                  onChange={(e) => setParticipantSearch(e.target.value)}
-                  className="block w-full px-4 py-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary text-gray-900 dark:text-white sm:text-lg placeholder-gray-400 dark:placeholder-gray-500 transition-shadow"
-                  placeholder="Search by username..."
-                />
-                {isSearching && (
-                  <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                    <svg
-                      className="animate-spin h-5 w-5 text-gray-400"
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                    >
-                      <circle
-                        className="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        strokeWidth="4"
-                      ></circle>
-                      <path
-                        className="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                      ></path>
-                    </svg>
+              
+              {/* In Transfer mode, show search only if no recipient selected yet (other than self) */}
+              {(mode === 'expense' || participants.length < 2) && (
+                  <div className="mt-1 relative rounded-md shadow-sm">
+                    <input
+                      type="text"
+                      id="participantSearch"
+                      value={participantSearch}
+                      onChange={(e) => setParticipantSearch(e.target.value)}
+                      className="block w-full px-4 py-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary text-gray-900 dark:text-white sm:text-lg placeholder-gray-400 dark:placeholder-gray-500 transition-shadow"
+                      placeholder={mode === 'transfer' ? "Search recipient..." : "Search by username..."}
+                    />
+                    {isSearching && (
+                      <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                        <svg
+                          className="animate-spin h-5 w-5 text-gray-400"
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                        >
+                          <circle
+                            className="opacity-25"
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            strokeWidth="4"
+                          ></circle>
+                          <path
+                            className="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                          ></path>
+                        </svg>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
+              )}
+              
               {suggestions.length > 0 && (
                 <ul className="absolute z-10 w-full mt-1 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg max-h-48 overflow-y-auto divide-y divide-gray-200 dark:divide-gray-600 ring-1 ring-black ring-opacity-5 focus:outline-none">
                   {suggestions.map((s) => (
@@ -317,6 +412,12 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
                           </span>
                         )}
                       </span>
+                      {mode === 'transfer' && p.email !== user.email && (
+                          <div className="text-xs text-green-600 dark:text-green-400 font-medium">Recipient</div>
+                      )}
+                      {mode === 'transfer' && p.email === user.email && (
+                          <div className="text-xs text-gray-500 dark:text-gray-400">Sender</div>
+                      )}
                     </div>
                   </div>
                   {p.email !== user.email && (
@@ -333,7 +434,7 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
               ))}
             </div>
 
-            {participants.length > 0 && (
+            {participants.length > 0 && mode === 'expense' && (
               <div className="space-y-4 pt-4 border-t border-gray-200 dark:border-gray-600">
                 <div className="flex items-center justify-between">
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
@@ -455,11 +556,8 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
                   </div>
                   <div className="ml-3">
                     <h3 className="text-sm font-medium text-red-800 dark:text-red-200">
-                      There were errors with your submission
+                      {error}
                     </h3>
-                    <div className="mt-2 text-sm text-red-700 dark:text-red-300">
-                      <p>{error}</p>
-                    </div>
                   </div>
                 </div>
               </div>
@@ -477,7 +575,7 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
               <button
                 type="submit"
                 disabled={
-                  loading || (splitMode === "manual" && !isManualSplitValid)
+                  loading || (splitMode === "manual" && !isManualSplitValid && mode === 'expense')
                 }
                 className="flex items-center gap-2 px-6 py-3 text-sm font-medium
              text-black dark:text-white
@@ -511,11 +609,11 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
                         d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                       ></path>
                     </svg>
-                    Adding...
+                    {mode === 'transfer' ? 'Sending...' : 'Adding...'}
                   </>
                 ) : (
                   <>
-                    Add Expense
+                    {mode === 'transfer' ? 'Send Money' : 'Add Expense'}
                     <CheckCircleIcon className="w-5 h-5" />
                   </>
                 )}
