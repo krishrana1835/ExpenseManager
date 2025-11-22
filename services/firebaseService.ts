@@ -10,7 +10,7 @@ import {
   onAuthStateChanged as firebaseOnAuthStateChanged,
   User as FirebaseUser,
   GoogleAuthProvider,
-  signInWithPopup
+  signInWithPopup,
 } from "firebase/auth";
 import {
   getFirestore,
@@ -20,11 +20,12 @@ import {
   setDoc,
   collection,
   addDoc,
+  deleteDoc, // Added deleteDoc
   getDocs,
   query,
   where,
   orderBy,
-  Timestamp
+  Timestamp,
 } from "firebase/firestore";
 
 import { User, Expense } from "../types";
@@ -39,7 +40,7 @@ const firebaseConfig = {
   storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 };
 
 // ------------------------------
@@ -59,18 +60,21 @@ export const auth = {
   },
 
   register: async (email: string, password: string, username: string) => {
-    const cred = await createUserWithEmailAndPassword(authInstance, email, password);
+    const cred = await createUserWithEmailAndPassword(
+      authInstance,
+      email,
+      password
+    );
 
     await setDoc(doc(db, "users", cred.user.uid), {
       email,
       name: username,
-      createdAt: Timestamp.now()
+      createdAt: Timestamp.now(),
     });
 
     return cred;
   },
 
-  // ⭐ Improved Google Auth: Creates user entry on first login
   signInWithGoogle: async () => {
     const result = await signInWithPopup(authInstance, googleProvider);
     const user = result.user;
@@ -82,7 +86,7 @@ export const auth = {
       await setDoc(userRef, {
         email: user.email,
         name: user.displayName || "Google User",
-        createdAt: Timestamp.now()
+        createdAt: Timestamp.now(),
       });
     }
 
@@ -91,26 +95,28 @@ export const auth = {
 
   signOut: () => firebaseSignOut(authInstance),
 
-  // ⭐ Fixed: Clean mapping + prevents double profile reads
   onAuthStateChanged: (callback: (user: User | null) => void) => {
-    return firebaseOnAuthStateChanged(authInstance, async (fbUser: FirebaseUser | null) => {
-      if (!fbUser) {
-        callback(null);
-        return;
-      }
+    return firebaseOnAuthStateChanged(
+      authInstance,
+      async (fbUser: FirebaseUser | null) => {
+        if (!fbUser) {
+          callback(null);
+          return;
+        }
 
-      const snap = await getDoc(doc(db, "users", fbUser.uid));
-      if (!snap.exists()) {
-        callback(null);
-        return;
-      }
+        const snap = await getDoc(doc(db, "users", fbUser.uid));
+        if (!snap.exists()) {
+          callback(null);
+          return;
+        }
 
-      callback({
-        ...(snap.data() as User),
-        uid: fbUser.uid
-      });
-    });
-  }
+        callback({
+          ...(snap.data() as User),
+          uid: fbUser.uid,
+        });
+      }
+    );
+  },
 };
 
 // ------------------------------
@@ -122,10 +128,13 @@ export const firestore = {
     return snap.exists() ? { uid: uid, ...(snap.data() as User) } : null;
   },
 
-  checkUsernameExists: async (name: string, currentUid?: string): Promise<boolean> => {
+  checkUsernameExists: async (
+    name: string,
+    currentUid?: string
+  ): Promise<boolean> => {
     const q = query(collection(db, "users"), where("name", "==", name));
     const snap = await getDocs(q);
-    return snap.docs.some(doc => doc.id !== currentUid);
+    return snap.docs.some((doc) => doc.id !== currentUid);
   },
 
   updateUserProfile: async (uid: string, data: Partial<User>) => {
@@ -136,28 +145,29 @@ export const firestore = {
     return updateDoc(doc(db, "users", uid), data);
   },
 
-  // CRITICAL FIX HERE
-  addExpense: async (expense: Omit<Expense, "id" | "date"> & { date: Date }): Promise<Expense> => {
-    // 1. Convert JS Date to Firestore Timestamp for storage
+  addExpense: async (
+    expense: Omit<Expense, "id" | "date"> & { date: Date }
+  ): Promise<Expense> => {
     const dateForFirestore = Timestamp.fromDate(expense.date);
 
-    // 2. Save to Firestore with the Timestamp
     const ref = await addDoc(collection(db, "expenses"), {
       ...expense,
-      date: dateForFirestore
+      date: dateForFirestore,
     });
 
-    // 3. IMPORTANT: Return the object containing the standard JS Date back to the React State.
-    // Do NOT return 'dateForFirestore' here.
     return {
-        id: ref.id,
-        ...expense,
-        date: expense.date // This ensures the UI state only holds standard Date objects
+      id: ref.id,
+      ...expense,
+      date: expense.date,
     };
   },
 
+  // NEW: Delete Expense Function
+  deleteExpense: async (expenseId: string): Promise<void> => {
+    await deleteDoc(doc(db, "expenses", expenseId));
+  },
+
   getExpenses: async (userEmail: string): Promise<Expense[]> => {
-    // ... (The rest of your getExpenses looked correct)
     const q = query(
       collection(db, "expenses"),
       where("participants", "array-contains", userEmail),
@@ -165,18 +175,23 @@ export const firestore = {
     );
     const snap = await getDocs(q);
 
-    return snap.docs.map(doc => {
+    return snap.docs.map((doc) => {
       const data = doc.data();
       return {
         id: doc.id,
         ...data,
-        // Ensure Firestore Timestamps are converted to JS Dates on read
-        date: data.date instanceof Timestamp ? data.date.toDate() : new Date(data.date)
+        date:
+          data.date instanceof Timestamp
+            ? data.date.toDate()
+            : new Date(data.date),
       } as Expense;
     });
   },
 
-  searchUsersByName: async (text: string, excludeEmails: string[]): Promise<User[]> => {
+  searchUsersByName: async (
+    text: string,
+    excludeEmails: string[]
+  ): Promise<User[]> => {
     if (!text) return [];
 
     const q = query(
@@ -188,8 +203,8 @@ export const firestore = {
     const snap = await getDocs(q);
 
     return snap.docs
-      .map(d => ({ id: d.id, ...(d.data() as User) }))
-      .filter(u => !excludeEmails.includes(u.email));
+      .map((d) => ({ id: d.id, ...(d.data() as User) }))
+      .filter((u) => !excludeEmails.includes(u.email));
   },
 
   getUsersByEmails: async (emails: string[]): Promise<User[]> => {
@@ -200,7 +215,9 @@ export const firestore = {
     for (const email of emails) {
       const q = query(collection(db, "users"), where("email", "==", email));
       const snap = await getDocs(q);
-      snap.forEach(doc => results.push({ uid: doc.id, ...(doc.data() as User) }));
+      snap.forEach((doc) =>
+        results.push({ uid: doc.id, ...(doc.data() as User) })
+      );
     }
 
     return results;
@@ -210,5 +227,5 @@ export const firestore = {
     const q = query(collection(db, "users"), where("email", "==", email));
     const snap = await getDocs(q);
     return !snap.empty;
-  }
+  },
 };

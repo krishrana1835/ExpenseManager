@@ -2,6 +2,14 @@ import React, { useState, useMemo } from 'react';
 import { Expense, User } from '../types';
 import { CalendarIcon, ChevronDownIcon } from './icons';
 import { Timestamp } from "firebase/firestore";
+import { firestore } from "../services/firebaseService";
+
+// Inline TrashIcon to ensure it works without modifying your icons file
+const TrashIcon = ({ className }: { className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+  </svg>
+);
 
 // Fallback for window.Motion (framer-motion optional)
 const Motion = (window as any).Motion || {};
@@ -21,15 +29,18 @@ const isSameDay = (d1: Date, d2: Date) =>
 const Transactions = ({
     expenses,
     user,
-    nameMap
+    nameMap,
+    onDelete // New prop to notify App.tsx of deletion
 }: {
     expenses: Expense[];
     user: User;
     nameMap: Map<string, string>;
+    onDelete?: (id: string) => void;
 }) => {
     const [filter, setFilter] = useState<FilterType>('month');
     const [customDate, setCustomDate] = useState<string>(new Date().toISOString().split('T')[0]);
     const [expandedId, setExpandedId] = useState<string | null>(null);
+    const [deletingId, setDeletingId] = useState<string | null>(null);
 
     // Ensure every expense has a real Date object
     const cleanExpenses = useMemo(
@@ -77,6 +88,27 @@ const Transactions = ({
                 return cleanExpenses;
         }
     }, [cleanExpenses, filter, customDate]);
+
+    // Handle deletion logic
+    const handleDeleteClick = async (e: React.MouseEvent, expense: Expense) => {
+        e.stopPropagation(); // Prevent expanding the row when clicking delete
+        if (!expense.id) return;
+
+        if (window.confirm(`Are you sure you want to delete "${expense.reason}"?`)) {
+            setDeletingId(expense.id);
+            try {
+                // Call firebase service
+                await firestore.deleteExpense(expense.id);
+                // Update local state via callback
+                if (onDelete) onDelete(expense.id);
+            } catch (error) {
+                console.error("Error deleting expense:", error);
+                alert("Failed to delete expense.");
+            } finally {
+                setDeletingId(null);
+            }
+        }
+    };
 
     const FilterButton = ({
         type,
@@ -147,13 +179,16 @@ const Transactions = ({
                                     ? exp.amount
                                     : userSplit;
 
+                            // Show delete button only if the current user paid for it
+                            const canDelete = exp.paidBy === user.email;
+
                             return (
                                 <div key={exp.id}>
                                     <div
                                         onClick={() =>
                                             setExpandedId(isExpanded ? null : exp.id)
                                         }
-                                        className="p-4 flex justify-between items-center cursor-pointer"
+                                        className="p-4 flex justify-between items-center cursor-pointer group"
                                     >
                                         <div>
                                             <p className="font-semibold text-gray-800 dark:text-white">
@@ -198,11 +233,27 @@ const Transactions = ({
                                                 </p>
                                             </div>
 
-                                            <ChevronDownIcon
-                                                className={`w-5 h-5 text-gray-400 transition-transform ${
-                                                    isExpanded ? 'rotate-180' : ''
-                                                }`}
-                                            />
+                                            <div className="flex items-center gap-2">
+                                                {canDelete && (
+                                                    <button
+                                                        onClick={(e) => handleDeleteClick(e, exp)}
+                                                        disabled={deletingId === exp.id}
+                                                        className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full transition-all opacity-0 group-hover:opacity-100 focus:opacity-100"
+                                                        title="Delete transaction"
+                                                    >
+                                                        {deletingId === exp.id ? (
+                                                            <div className="w-5 h-5 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
+                                                        ) : (
+                                                            <TrashIcon className="w-5 h-5" />
+                                                        )}
+                                                    </button>
+                                                )}
+                                                <ChevronDownIcon
+                                                    className={`w-5 h-5 text-gray-400 transition-transform ${
+                                                        isExpanded ? 'rotate-180' : ''
+                                                    }`}
+                                                />
+                                            </div>
                                         </div>
                                     </div>
 

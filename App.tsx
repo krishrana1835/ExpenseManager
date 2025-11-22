@@ -109,6 +109,13 @@ const AppContent = () => {
   };
 
   /** -------------------------
+   * Handle Delete Expense (New)
+   --------------------------*/
+  const handleDeleteExpense = (deletedId: string) => {
+    setExpenses((prev) => prev.filter((exp) => exp.id !== deletedId));
+  };
+
+  /** -------------------------
    * Not Logged In → Show Login
    --------------------------*/
   if (!user) {
@@ -146,7 +153,12 @@ const AppContent = () => {
         return <Dashboard expenses={expenses} user={user} nameMap={nameMap} />;
       case "transactions":
         return (
-          <Transactions expenses={expenses} user={user} nameMap={nameMap} />
+          <Transactions 
+            expenses={expenses} 
+            user={user} 
+            nameMap={nameMap} 
+            onDelete={handleDeleteExpense} // Passed the handler here
+          />
         );
       case "debts":
         return (
@@ -220,7 +232,7 @@ const AppContent = () => {
 
           <button
             onClick={() => setIsModalOpen(true)}
-            className="w-16 h-16 -mt-8 rounded-xl 
+            className="w-16 h-16 rounded-xl 
              bg-primary 
              text-gray-700 dark:text-gray-100
              flex items-center justify-center 
