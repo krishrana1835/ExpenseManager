@@ -206,41 +206,36 @@ const AppContent = () => {
 
       {/* Bottom Nav Bar */}
       <footer className="fixed bottom-0 left-0 right-0 bg-white dark:bg-neutral-900 border-t border-gray-200 dark:border-neutral-700 shadow-lg">
-        <div className="relative flex justify-around items-center h-16 max-w-4xl mx-auto">
+        <div className="flex justify-around items-center h-16 max-w-4xl mx-auto">
           <NavItem
             pageName="dashboard"
             label="Dashboard"
             icon={<DashboardIcon className="w-6 h-6 mb-1" />}
           />
-
           <NavItem
             pageName="transactions"
             label="History"
             icon={<TransactionsIcon className="w-6 h-6 mb-1" />}
           />
 
-          {/* Floating Button */}
-          <div className="absolute -top-6 left-1/2 -translate-x-1/2">
-            <button
-              onClick={() => setIsModalOpen(true)}
-              className="w-16 h-16 rounded-xl 
-                   bg-primary 
-                   text-white dark:text-white
-                   flex items-center justify-center 
-                   shadow-lg dark:shadow-[0_4px_15px_rgba(0,0,0,0.35)]
-                   hover:scale-110 
-                   transition-transform"
-            >
-              <PlusIcon className="w-8 h-8" />
-            </button>
-          </div>
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="w-16 h-16 -mt-8 rounded-xl 
+             bg-primary 
+             text-gray-700 dark:text-gray-100
+             flex items-center justify-center 
+             shadow-lg dark:shadow-[0_4px_15px_rgba(0,0,0,0.35)]
+             hover:scale-110 
+             transition-transform"
+          >
+            <PlusIcon className="w-8 h-8" />
+          </button>
 
           <NavItem
             pageName="debts"
             label="Debts"
             icon={<DebtsIcon className="w-6 h-6 mb-1" />}
           />
-
           <NavItem
             pageName="profile"
             label="Profile"
