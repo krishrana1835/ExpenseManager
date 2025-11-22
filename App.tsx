@@ -232,11 +232,11 @@ const AppContent = () => {
 
           <button
             onClick={() => setIsModalOpen(true)}
-            className="w-16 h-16 rounded-xl 
+            className="w-25 h-16 rounded-xl 
              bg-primary 
              text-gray-700 dark:text-gray-100
              flex items-center justify-center 
-             shadow-lg dark:shadow-[0_4px_15px_rgba(0,0,0,0.35)]
+             shadow-lg dark:shadow-gray-600
              hover:scale-110 
              transition-transform"
           >
