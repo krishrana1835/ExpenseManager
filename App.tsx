@@ -224,7 +224,7 @@ const AppContent = () => {
              bg-primary 
              text-gray-700 dark:text-gray-100
              flex items-center justify-center 
-             shadow-xl hover:scale-110 
+             shadow-xl dark:shadow-white hover:scale-110 
              transition-transform"
           >
             <PlusIcon className="w-8 h-8" />
