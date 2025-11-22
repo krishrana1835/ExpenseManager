@@ -136,13 +136,28 @@ export const firestore = {
     return updateDoc(doc(db, "users", uid), data);
   },
 
+  // CRITICAL FIX HERE
   addExpense: async (expense: Omit<Expense, "id" | "date"> & { date: Date }): Promise<Expense> => {
-    const dateValue = Timestamp.fromDate(expense.date);
-    const ref = await addDoc(collection(db, "expenses"), { ...expense, date: dateValue });
-    return { id: ref.id, ...expense, date: expense.date };
+    // 1. Convert JS Date to Firestore Timestamp for storage
+    const dateForFirestore = Timestamp.fromDate(expense.date);
+
+    // 2. Save to Firestore with the Timestamp
+    const ref = await addDoc(collection(db, "expenses"), {
+      ...expense,
+      date: dateForFirestore
+    });
+
+    // 3. IMPORTANT: Return the object containing the standard JS Date back to the React State.
+    // Do NOT return 'dateForFirestore' here.
+    return {
+        id: ref.id,
+        ...expense,
+        date: expense.date // This ensures the UI state only holds standard Date objects
+    };
   },
 
   getExpenses: async (userEmail: string): Promise<Expense[]> => {
+    // ... (The rest of your getExpenses looked correct)
     const q = query(
       collection(db, "expenses"),
       where("participants", "array-contains", userEmail),
@@ -151,12 +166,13 @@ export const firestore = {
     const snap = await getDocs(q);
 
     return snap.docs.map(doc => {
-      const data = doc.data() as Expense;
+      const data = doc.data();
       return {
         id: doc.id,
         ...data,
-        date: (data.date as any).toDate()
-      };
+        // Ensure Firestore Timestamps are converted to JS Dates on read
+        date: data.date instanceof Timestamp ? data.date.toDate() : new Date(data.date)
+      } as Expense;
     });
   },
 
