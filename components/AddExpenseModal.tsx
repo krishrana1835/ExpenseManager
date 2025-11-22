@@ -480,7 +480,8 @@ const AddExpenseModal: React.FC<AddExpenseModalProps> = ({
                   loading || (splitMode === "manual" && !isManualSplitValid)
                 }
                 className="flex items-center gap-2 px-6 py-3 text-sm font-medium
-             text-white dark:text-white
+             text-black dark:text-white
+             outline-1 outline-gray-500
              bg-primary dark:bg-primary-500
              rounded-lg shadow-sm
              hover:bg-primary-600 dark:hover:bg-primary-400
