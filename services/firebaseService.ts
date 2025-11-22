@@ -139,7 +139,7 @@ export const firestore = {
   addExpense: async (expense: Omit<Expense, "id" | "date"> & { date: Date }): Promise<Expense> => {
     const dateValue = Timestamp.fromDate(expense.date);
     const ref = await addDoc(collection(db, "expenses"), { ...expense, date: dateValue });
-    return { id: ref.id, ...expense };
+    return { id: ref.id, ...expense, date: expense.date };
   },
 
   getExpenses: async (userEmail: string): Promise<Expense[]> => {
@@ -150,10 +150,14 @@ export const firestore = {
     );
     const snap = await getDocs(q);
 
-    return snap.docs.map(doc => ({
-      id: doc.id,
-      ...(doc.data() as Expense)
-    }));
+    return snap.docs.map(doc => {
+      const data = doc.data() as Expense;
+      return {
+        id: doc.id,
+        ...data,
+        date: (data.date as any).toDate()
+      };
+    });
   },
 
   searchUsersByName: async (text: string, excludeEmails: string[]): Promise<User[]> => {
