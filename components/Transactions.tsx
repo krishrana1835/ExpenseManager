@@ -183,7 +183,7 @@ const cleanExpenses = useMemo(
                                                             ? 'text-emerald-500'
                                                             : isDebit
                                                                 ? 'text-rose-500'
-                                                                : 'text-emerald-500'
+                                                                : "text-gray-500 dark:text-gray-300"
                                                     }`}
                                                 >
                                                     {isDebit ? '-' : isCredit ? '+' : ''}
